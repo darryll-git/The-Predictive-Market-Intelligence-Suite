@@ -1,0 +1,45 @@
+# R
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+.Renviron
+.R-libs/
+*.Rproj
+
+# Data and Outputs
+/data/*
+!/data/.gitkeep
+/outputs/*
+!/outputs/.gitkeep
+/models/*
+!/models/.gitkeep
+
+# Python (General Data Science)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# VS Code / IDEs
+.vscode/
+.idea/
+
+# General
+*.log
+*.tmp
+*.bak
+*.swp

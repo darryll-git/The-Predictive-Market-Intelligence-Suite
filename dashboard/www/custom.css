@@ -1,0 +1,235 @@
+/* dashboard/www/custom.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --primary-clinical: #0d7685;
+  --primary-hover: #0a5f6b;
+  --secondary-clinical: #1a80b0;
+  --accent-emerald: #2bb386;
+  --accent-coral: #e06d60;
+  --bg-gradient: linear-gradient(135deg, #f2f7f9 0%, #e7f2f5 100%);
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+  --text-dark: #21313c;
+  --text-light: #526776;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: var(--text-dark);
+  min-height: 100vh;
+}
+
+/* Glassmorphism Title Panel */
+.navbar-custom {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  padding: 1rem 2rem;
+  margin-bottom: 2rem;
+  border-radius: 0 0 16px 16px;
+}
+
+.navbar-brand-custom {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.6rem;
+  color: var(--primary-clinical) !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Tab Panels */
+.nav-pills .nav-link {
+  color: var(--text-light);
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.3s ease;
+  margin-right: 8px;
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--primary-clinical) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(13, 118, 133, 0.2);
+}
+
+.nav-pills .nav-link:hover:not(.active) {
+  background-color: rgba(13, 118, 133, 0.08);
+  color: var(--primary-clinical);
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.08);
+}
+
+/* Strategic KPI Cards */
+.kpi-card {
+  border-left: 5px solid var(--primary-clinical);
+}
+
+.kpi-card.emerald {
+  border-left: 5px solid var(--accent-emerald);
+}
+
+.kpi-card.coral {
+  border-left: 5px solid var(--accent-coral);
+}
+
+.kpi-value {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 2.2rem;
+  color: var(--primary-clinical);
+  margin-top: 5px;
+}
+
+.kpi-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+}
+
+/* Premium Inputs */
+.selectize-input, .form-control, .shiny-bound-input {
+  border-radius: 10px !important;
+  border: 1px solid rgba(13, 118, 133, 0.2) !important;
+  padding: 0.6rem 1rem !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  box-shadow: none !important;
+}
+
+.selectize-input.focus, .form-control:focus {
+  border-color: var(--primary-clinical) !important;
+  box-shadow: 0 0 0 3px rgba(13, 118, 133, 0.15) !important;
+}
+
+/* Custom Simulation Sliders */
+.irs-bar {
+  background: var(--primary-clinical) !important;
+  border-top: 1px solid var(--primary-clinical) !important;
+  border-bottom: 1px solid var(--primary-clinical) !important;
+}
+
+.irs-from, .irs-to, .irs-single {
+  background: var(--primary-clinical) !important;
+}
+
+.irs-handle {
+  border: 3px solid var(--primary-clinical) !important;
+  background-color: #ffffff !important;
+}
+
+/* Beautiful Action Button */
+.btn-simulate {
+  background: linear-gradient(135deg, var(--primary-clinical) 0%, var(--secondary-clinical) 100%) !important;
+  color: white !important;
+  border: none !important;
+  font-weight: 600 !important;
+  border-radius: 10px !important;
+  padding: 0.8rem 1.8rem !important;
+  box-shadow: 0 4px 15px rgba(13, 118, 133, 0.3) !important;
+  transition: all 0.25s ease !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  width: 100%;
+}
+
+.btn-simulate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(13, 118, 133, 0.4) !important;
+}
+
+.btn-simulate:active {
+  transform: translateY(1px);
+}
+
+/* Section Header Titles */
+.section-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  color: var(--primary-clinical);
+  border-bottom: 2px solid rgba(13, 118, 133, 0.1);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+/* Badges for Shock */
+.approval-badge {
+  background-color: rgba(43, 179, 134, 0.15);
+  color: var(--accent-emerald);
+  padding: 0.3rem 0.8rem;
+  border-radius: 30px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid rgba(43, 179, 134, 0.25);
+  display: inline-block;
+}
+
+/* Styling DataTables */
+.dataTables_wrapper {
+  background: transparent !important;
+}
+
+table.dataTable {
+  border-collapse: separate !important;
+  border-spacing: 0 8px !important;
+}
+
+table.dataTable tbody tr {
+  background-color: rgba(255, 255, 255, 0.6) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.02) !important;
+  transition: all 0.2s ease;
+}
+
+table.dataTable tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+table.dataTable tbody td {
+  border-top: 1px solid rgba(0,0,0,0.02) !important;
+  border-bottom: 1px solid rgba(0,0,0,0.02) !important;
+  padding: 12px 16px !important;
+}
+
+table.dataTable tbody td:first-child {
+  border-left: 1px solid rgba(0,0,0,0.02) !important;
+  border-radius: 8px 0 0 8px;
+}
+
+table.dataTable tbody td:last-child {
+  border-right: 1px solid rgba(0,0,0,0.02) !important;
+  border-radius: 0 8px 8px 0;
+}
+
+table.dataTable thead th {
+  border-bottom: 2px solid rgba(13, 118, 133, 0.1) !important;
+  color: var(--primary-clinical) !important;
+  font-weight: 600 !important;
+  padding: 12px 16px !important;
+}
