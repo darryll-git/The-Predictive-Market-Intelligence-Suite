@@ -45,8 +45,8 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/raw/
-          git add data/processed/
-          git add outputs/
+          git add -f data/raw/
+          git add -f data/processed/
+          git add -f outputs/
           git diff-index --quiet HEAD || git commit -m "Auto-update market intelligence data, plots, and predictive model [skip ci]"
           git push
