@@ -5,7 +5,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libcurl4-gnutls-dev \
         libssl-dev \
-        libxml2-dev && \
+        libxml2-dev \
+        libuv1-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy project files
@@ -14,8 +15,11 @@ COPY . /srv/shiny-server/
 # Set working directory
 WORKDIR /srv/shiny-server/
 
-# Install R packages via renv (if renv.lock exists) or install dependencies manually
-RUN R -e "if (!requireNamespace('renv')) install.packages('renv', repos='https://cloud.r-project.org'); renv::restore(prompt=FALSE)"
+# Install R dependencies directly
+RUN R -e "install.packages(c('shiny', 'dplyr', 'tidyr', 'ggplot2', 'readr', 'lubridate', 'randomForest', 'plotly', 'bslib', 'DT', 'shinyWidgets'), repos='https://cloud.r-project.org')"
+
+# Run data setup scripts to generate cleaned dataset
+RUN Rscript scripts/01_data_ingestion.R && Rscript scripts/02_data_cleaning.R
 
 # Expose Shiny default port
 EXPOSE 3838

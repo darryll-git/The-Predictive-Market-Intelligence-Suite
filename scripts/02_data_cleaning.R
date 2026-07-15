@@ -41,17 +41,15 @@ cleaned_data <- cleaned_data %>%
   ungroup()
 
 # 3. Impute missing volume (units_sold)
-# Since sales volume fluctuates, we'll impute missing values using the group median for that product category and region.
-group_medians <- cleaned_data %>%
-  group_by(product_category, region) %>%
-  summarize(median_units_sold = median(units_sold, na.rm = TRUE), .groups = "drop")
-
+# Since sales volume fluctuates with seasonal cosine waves, we use linear interpolation 
+# to preserve the structural shape instead of flattening variance with the median.
 cleaned_data <- cleaned_data %>%
-  left_join(group_medians, by = c("product_category", "region")) %>%
+  group_by(product_category, region) %>%
+  arrange(date) %>%
   mutate(
-    units_sold = ifelse(is.na(units_sold), round(median_units_sold), units_sold)
+    units_sold = round(zoo::na.approx(units_sold, na.rm = FALSE, rule = 2))
   ) %>%
-  select(-median_units_sold)
+  ungroup()
 
 # Verify no remaining missing values in core columns
 any_nas <- any(is.na(cleaned_data$unit_price)) || any(is.na(cleaned_data$units_sold))

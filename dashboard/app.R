@@ -34,7 +34,10 @@ market_data$date <- as.Date(market_data$date)
 
 # Load machine learning model
 if (file.exists(model_path)) {
-  rf_model <- readRDS(model_path)
+  model_bundle <- readRDS(model_path)
+  rf_model <- model_bundle$model
+  model_metrics <- model_bundle$metrics
+  model_vi <- model_bundle$feature_importance
   model_available <- TRUE
 } else {
   model_available <- FALSE
@@ -265,22 +268,22 @@ ui <- fluidPage(
             column(4,
                    div(class = "glass-card kpi-card emerald",
                        div(class = "kpi-title", "Explained Variance (R-Squared)"),
-                       div(class = "kpi-value", "96.1%"),
-                       p(class = "text-muted small", "The model explains 96.1% of weekly sales volume fluctuations.")
+                       uiOutput("health_rsq"),
+                       p(class = "text-muted small", "The model explains weekly sales volume fluctuations.")
                    )
             ),
             column(4,
                    div(class = "glass-card kpi-card",
                        div(class = "kpi-title", "Model Error (RMSE)"),
-                       div(class = "kpi-value", "16.58"),
-                       p(class = "text-muted small", "Average prediction error of ±16.58 units sold per week.")
+                       uiOutput("health_rmse"),
+                       p(class = "text-muted small", "Average prediction error for units sold per week.")
                    )
             ),
             column(4,
                    div(class = "glass-card kpi-card coral",
                        div(class = "kpi-title", "Mean Absolute Error (MAE)"),
-                       div(class = "kpi-value", "10.68"),
-                       p(class = "text-muted small", "On average, estimates are off by 10.68 units sold.")
+                       uiOutput("health_mae"),
+                       p(class = "text-muted small", "Average absolute magnitude of estimate errors.")
                    )
             )
           ),
@@ -420,7 +423,7 @@ server <- function(input, output, session) {
       rownames = FALSE,
       class = 'hover cell-border stripe'
     )
-  })
+  }, server = TRUE)
   
   # ----------------------------------------------------
   # TAB 2: SIMULATOR SERVER LOGIC
@@ -479,24 +482,30 @@ server <- function(input, output, session) {
     }
     
     # Prepare standard feature input dataframe
-    # Make sure we select a region. If "All Regions", we use "North" as a standard baseline
     sim_region <- if(input$filter_region == "All Regions") "North" else input$filter_region
+    sim_date <- as.Date(paste0("2026-", input$sim_month, "-15"))
     
     input_df <- data.frame(
-      product_category = factor(input$filter_category, levels = rf_model$forest$xlevels$product_category),
-      region = factor(sim_region, levels = rf_model$forest$xlevels$region),
+      product_category = input$filter_category,
+      region = sim_region,
       unit_price = input$sim_price,
       competitor_price = input$sim_comp_price,
       price_ratio = input$sim_price / input$sim_comp_price,
       marketing_spend = input$sim_marketing,
       marketing_log = log(input$sim_marketing + 1),
-      month_factor = factor(input$sim_month, levels = rf_model$forest$xlevels$month_factor),
+      month_factor = factor(input$sim_month),
+      fourier_sin = sin(2 * pi * isoweek(sim_date) / 52.14),
+      fourier_cos = cos(2 * pi * isoweek(sim_date) / 52.14),
+      roll_mean_vol_4 = input$sim_lag_1,
+      roll_mean_vol_12 = input$sim_lag_1,
+      roll_mean_price_ratio_4 = input$sim_price / input$sim_comp_price,
+      shock_decay = if(input$sim_regulatory) 1 else 0,
       lag_volume_1 = input$sim_lag_1,
       lag_volume_2 = input$sim_lag_2
     )
     
-    # Predict using RF model
-    round(predict(rf_model, newdata = input_df))
+    # Predict using tidymodels
+    round(predict(rf_model, new_data = input_df)$.pred)
   })
   
   output$pred_volume <- renderText({
@@ -510,43 +519,49 @@ server <- function(input, output, session) {
   
   # Tab 2 Plot: Pricing & Revenue Curve
   output$plot_revenue_optimization <- renderPlotly({
-    # Simulate a range of 40 prices around the competitor's price
     comp_price <- input$sim_comp_price
-    price_seq <- seq(from = round(comp_price * 0.6), to = round(comp_price * 1.5), length.out = 45)
-    
-    # Establish constants for all simulation rows
     sim_region <- if(input$filter_region == "All Regions") "North" else input$filter_region
+    sim_date <- as.Date(paste0("2026-", input$sim_month, "-15"))
     
-    if (model_available) {
-      sim_df <- data.frame(
-        product_category = factor(rep(input$filter_category, length(price_seq)), levels = rf_model$forest$xlevels$product_category),
-        region = factor(rep(sim_region, length(price_seq)), levels = rf_model$forest$xlevels$region),
-        unit_price = price_seq,
-        competitor_price = comp_price,
-        price_ratio = price_seq / comp_price,
-        marketing_spend = input$sim_marketing,
-        marketing_log = log(input$sim_marketing + 1),
-        month_factor = factor(rep(input$sim_month, length(price_seq)), levels = rf_model$forest$xlevels$month_factor),
-        lag_volume_1 = input$sim_lag_1,
-        lag_volume_2 = input$sim_lag_2
-      )
-      
-      # Predict for entire sequence
-      predicted_vols <- predict(rf_model, newdata = sim_df)
-    } else {
-      # Fallback mathematical curve
-      base_val <- switch(input$filter_category,
-                         "Cardiology Devices" = 120, "Oncology Drugs" = 45, 
-                         "Neurology Biologics" = 80, "Orthopedic Implants" = 210)
-      price_ratio <- price_seq / comp_price
-      price_eff <- exp(-1.8 * (price_ratio - 1))
-      mkt_eff <- 1 + 0.12 * log(input$sim_marketing / 1000 + 1)
-      reg_eff <- if(input$sim_regulatory) 1.25 else 1.0
-      
-      predicted_vols <- base_val * price_eff * mkt_eff * reg_eff
+    # Objective Function for optimize()
+    rev_func <- function(price) {
+      if (model_available) {
+        sim_df <- data.frame(
+          product_category = input$filter_category,
+          region = sim_region,
+          unit_price = price,
+          competitor_price = comp_price,
+          price_ratio = price / comp_price,
+          marketing_spend = input$sim_marketing,
+          marketing_log = log(input$sim_marketing + 1),
+          month_factor = factor(input$sim_month),
+          fourier_sin = sin(2 * pi * isoweek(sim_date) / 52.14),
+          fourier_cos = cos(2 * pi * isoweek(sim_date) / 52.14),
+          roll_mean_vol_4 = input$sim_lag_1,
+          roll_mean_vol_12 = input$sim_lag_1,
+          roll_mean_price_ratio_4 = price / comp_price,
+          shock_decay = if(input$sim_regulatory) 1 else 0,
+          lag_volume_1 = input$sim_lag_1,
+          lag_volume_2 = input$sim_lag_2
+        )
+        vol <- predict(rf_model, new_data = sim_df)$.pred
+      } else {
+        base_val <- switch(input$filter_category, "Cardiology Devices" = 120, "Oncology Drugs" = 45, "Neurology Biologics" = 80, "Orthopedic Implants" = 210)
+        price_eff <- exp(-1.8 * ((price / comp_price) - 1))
+        mkt_eff <- 1 + 0.12 * log(input$sim_marketing / 1000 + 1)
+        vol <- base_val * price_eff * mkt_eff * (if(input$sim_regulatory) 1.25 else 1.0)
+      }
+      return(vol * price)
     }
     
-    projected_revenue <- predicted_vols * price_seq
+    # Find Mathematical Global Maximum Revenue
+    opt_res <- optimize(rev_func, interval = c(comp_price * 0.6, comp_price * 1.5), maximum = TRUE)
+    opt_price <- opt_res$maximum
+    max_rev <- opt_res$objective
+    
+    # Generate points for visual curve
+    price_seq <- seq(from = round(comp_price * 0.6), to = round(comp_price * 1.5), length.out = 45)
+    projected_revenue <- sapply(price_seq, rev_func)
     
     plot_df <- data.frame(
       price = price_seq,
@@ -593,16 +608,35 @@ server <- function(input, output, session) {
   # TAB 3: MODEL RIGOR & HEALTH
   # ----------------------------------------------------
   
+  output$health_rsq <- renderUI({
+    val <- if(model_available) paste0(round(model_metrics$mean[model_metrics$.metric == "rsq"] * 100, 1), "%") else "N/A"
+    div(class = "kpi-value", val)
+  })
+  
+  output$health_rmse <- renderUI({
+    val <- if(model_available) round(model_metrics$mean[model_metrics$.metric == "rmse"], 2) else "N/A"
+    div(class = "kpi-value", val)
+  })
+  
+  output$health_mae <- renderUI({
+    val <- if(model_available) round(model_metrics$mean[model_metrics$.metric == "mae"], 2) else "N/A"
+    div(class = "kpi-value", val)
+  })
+  
   output$plot_model_importance <- renderPlotly({
-    # Feature Importance details (statically calculated from evaluation step)
-    imp_df <- data.frame(
-      Feature = c("Category", "Competitor Price", "Our Price", "Prior Week Sales (Lag 1)", 
-                  "2-Weeks Prior Sales (Lag 2)", "Pricing Ratio (elasticity)", "Region", 
-                  "Calendar Month", "Log Marketing Spend", "Marketing Budget"),
-      Importance = c(5123348, 3880151, 3820436, 2853504, 2569016, 557296, 490864, 262945, 241681, 226452)
-    )
+    if (model_available) {
+      imp_df <- model_vi %>% top_n(10, Importance)
+    } else {
+      # Dummy Feature Importance details
+      imp_df <- data.frame(
+        Variable = c("Category", "Competitor Price", "Our Price", "Prior Week Sales (Lag 1)", 
+                    "2-Weeks Prior Sales (Lag 2)", "Pricing Ratio (elasticity)", "Region", 
+                    "Calendar Month", "Log Marketing Spend", "Marketing Budget"),
+        Importance = c(51, 38, 38, 28, 25, 5, 4, 2, 2, 2)
+      )
+    }
     
-    p <- ggplot(imp_df, aes(x = reorder(Feature, Importance), y = Importance, fill = Importance)) +
+    p <- ggplot(imp_df, aes(x = reorder(Variable, Importance), y = Importance, fill = Importance)) +
       geom_bar(stat = "identity", width = 0.7) +
       coord_flip() +
       scale_fill_gradient(low = "#b6e0e6", high = "#1b7d8c") +

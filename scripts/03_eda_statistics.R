@@ -55,7 +55,32 @@ cat("\n--- Correlations with Units Sold ---\n")
 print(cor_analysis)
 write.csv(cor_analysis, "outputs/reports/correlation_metrics.csv", row.names = FALSE)
 
-# 4. Generate Visualizations (Storytelling with Data principles)
+# 4. Time-Series Diagnostics (ACF, PACF, ADF)
+cat("\n--- Time-Series Diagnostics ---\n")
+
+# We test the first product-region combination as a proxy for the tests
+sample_ts <- cleaned_data %>% 
+  filter(product_category == "Cardiology Devices", region == "North") %>%
+  arrange(date)
+
+# ADF Test on Unit Prices (Check for stationarity/inflation drift)
+if (requireNamespace("tseries", quietly = TRUE)) {
+  # suppressWarnings because adf.test can warn about p-value interpolations
+  adf_res <- suppressWarnings(tseries::adf.test(sample_ts$unit_price))
+  cat(sprintf("ADF Test for Unit Price (Cardiology, North): p-value = %.4f (non-stationary if > 0.05)\n", adf_res$p.value))
+} else {
+  cat("Package 'tseries' not installed. Skipping ADF test.\n")
+}
+
+# ACF / PACF for Sales Volume Memory Decay
+png("outputs/figures/volume_acf_pacf.png", width = 800, height = 400, res = 100)
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+acf(sample_ts$units_sold, main = "ACF of Sales Volume", lag.max = 24)
+pacf(sample_ts$units_sold, main = "PACF of Sales Volume", lag.max = 24)
+dev.off()
+cat("ACF and PACF plots saved to outputs/figures/volume_acf_pacf.png\n")
+
+# 5. Generate Visualizations (Storytelling with Data principles)
 
 # Visualization A: Regional Sales Volume Boxplot
 p_box <- ggplot(cleaned_data, aes(x = region, y = units_sold, fill = region)) +

@@ -28,9 +28,45 @@ raw_grid <- expand.grid(
 n_rows <- nrow(raw_grid)
 
 # Add numeric and text details
-raw_grid$inflation_rate <- 2.5 + cumsum(rnorm(n_weeks, 0, 0.05))[as.numeric(raw_grid$date - min(raw_grid$date))/7 + 1] # macro variable
-# limit inflation between 1% and 6%
-raw_grid$inflation_rate <- pmax(1.0, pmin(6.0, raw_grid$inflation_rate))
+# Attempt to fetch real CPI inflation data from FRED
+api_success <- FALSE
+tryCatch({
+  if (requireNamespace("quantmod", quietly = TRUE)) {
+    # Fetch Consumer Price Index for All Urban Consumers (CPIAUCSL)
+    cpi_xts <- suppressWarnings(quantmod::getSymbols("CPIAUCSL", src = "FRED", auto.assign = FALSE))
+    cpi_df <- data.frame(date = zoo::index(cpi_xts), cpi = as.numeric(cpi_xts))
+    
+    # Filter to relevant timeline (start 1 year prior to get YoY)
+    cpi_df <- cpi_df[cpi_df$date >= as.Date("2021-01-01"), ]
+    
+    # Calculate Year-over-Year (YoY) inflation rate
+    cpi_df$inflation_rate <- NA
+    for (j in 13:nrow(cpi_df)) {
+      cpi_df$inflation_rate[j] <- (cpi_df$cpi[j] - cpi_df$cpi[j-12]) / cpi_df$cpi[j-12] * 100
+    }
+    cpi_df$inflation_rate[is.na(cpi_df$inflation_rate)] <- 2.5
+    
+    # Interpolate monthly CPI to our weekly grid
+    cpi_spline <- spline(x = as.numeric(cpi_df$date), y = cpi_df$inflation_rate, xout = as.numeric(weeks))
+    
+    date_match_idx <- match(raw_grid$date, weeks)
+    raw_grid$inflation_rate <- pmax(1.0, pmin(6.0, cpi_spline$y[date_match_idx]))
+    
+    api_success <- TRUE
+    cat("Successfully fetched and integrated real-world macroeconomic CPI data from FRED.\n")
+  } else {
+    cat("Package 'quantmod' not installed. Falling back to simulated inflation.\n")
+  }
+}, error = function(e) {
+  cat("Warning: Could not fetch FRED CPI data (", e$message, "). Falling back to simulated inflation.\n", sep="")
+})
+
+if (!api_success) {
+  # Fallback to mathematical simulation
+  raw_grid$inflation_rate <- 2.5 + cumsum(rnorm(n_weeks, 0, 0.05))[as.numeric(raw_grid$date - min(raw_grid$date))/7 + 1]
+  # limit inflation between 1% and 6%
+  raw_grid$inflation_rate <- pmax(1.0, pmin(6.0, raw_grid$inflation_rate))
+}
 
 # Generate prices with minor upward trend
 raw_grid$unit_price <- sapply(1:n_rows, function(i) {

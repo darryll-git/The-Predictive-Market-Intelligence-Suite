@@ -29,21 +29,39 @@ model_ready_data <- cleaned_data %>%
     marketing_log = log(marketing_spend + 1),
     month_factor = factor(format(date, "%m")),
     
+    # Fourier Terms for Cyclical Seasonality (Period = 52.14 weeks)
+    week_num = isoweek(date),
+    fourier_sin = sin(2 * pi * week_num / 52.14),
+    fourier_cos = cos(2 * pi * week_num / 52.14),
+    
+    # Rolling Window Features (4-week and 12-week momentum)
+    # Using zoo::rollmean with align='right' ensures no future data leakage
+    roll_mean_vol_4 = zoo::rollmean(units_sold, k = 4, fill = NA, align = "right"),
+    roll_mean_vol_12 = zoo::rollmean(units_sold, k = 12, fill = NA, align = "right"),
+    roll_mean_price_ratio_4 = zoo::rollmean(price_ratio, k = 4, fill = NA, align = "right"),
+    
+    # Explicit Regulatory Shock Decay (e^-0.2t)
+    last_approval_date = cummax(ifelse(regulatory_approval == 1, as.numeric(date), 0)),
+    weeks_since_shock = ifelse(last_approval_date > 0, (as.numeric(date) - last_approval_date) / 7, Inf),
+    shock_decay = ifelse(weeks_since_shock <= 10, exp(-0.2 * weeks_since_shock), 0),
+    
     # Lagged features for time-series context
     lag_volume_1 = lag(units_sold, 1),
     lag_volume_2 = lag(units_sold, 2)
   ) %>%
-  ungroup()
+  ungroup() %>%
+  # Clean up temporary calculation columns
+  select(-week_num, -last_approval_date, -weeks_since_shock)
 
 # Report dimension before dropping NAs from lags
 n_before <- nrow(model_ready_data)
 
-# Remove rows containing NA from lagged features
+# Remove rows containing NA from lagged and rolling features
 model_ready_data <- model_ready_data %>%
-  filter(!is.na(lag_volume_1) & !is.na(lag_volume_2))
+  filter(!is.na(lag_volume_1) & !is.na(lag_volume_2) & !is.na(roll_mean_vol_12) & !is.na(roll_mean_price_ratio_4))
 
 n_after <- nrow(model_ready_data)
-cat(sprintf("Engineered features created. Dropped %d rows containing initial NA lags. Final rows: %d\n", (n_before - n_after), n_after))
+cat(sprintf("Engineered features created. Dropped %d rows containing initial NA lags/windows. Final rows: %d\n", (n_before - n_after), n_after))
 
 # Save the model-ready dataset
 write.csv(model_ready_data, "data/processed/model_ready_data.csv", row.names = FALSE)
