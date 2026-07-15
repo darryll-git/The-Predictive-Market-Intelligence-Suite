@@ -12,9 +12,12 @@ set R_LIBS_USER=%CD%\.R-libs
 rem Run setup script to restore renv environment
 Rscript setup.R
 
-rem Run data scripts to generate the cleaned dataset
+rem Run data scripts to generate the cleaned dataset and train the model
 Rscript scripts\01_data_ingestion.R
 Rscript scripts\02_data_cleaning.R
+Rscript scripts\03_eda_statistics.R
+Rscript scripts\04_feature_eng.R
+Rscript scripts\05_model_training.R
 
 rem Launch Shiny app
 R -e "shiny::runApp('dashboard/')"

@@ -6,8 +6,8 @@ library(plotly)
 library(DT)
 library(shinyWidgets)
 library(bslib)
-library(randomForest)
 library(lubridate)
+library(tidymodels)
 
 # Set up local libraries to find dependencies
 local_lib <- file.path(getwd(), ".R-libs")
@@ -17,12 +17,12 @@ if (dir.exists(local_lib)) {
 
 # 1. Load Datasets & Model
 cleaned_data_path <- "../data/processed/cleaned_market_data.csv"
-model_path <- "../models/saved_models/predictive_model.rds"
+model_path <- "../data/processed/predictive_model.rds"
 
 # In case paths are called from the workspace root or dashboard folder
 if (!file.exists(cleaned_data_path)) {
   cleaned_data_path <- "data/processed/cleaned_market_data.csv"
-  model_path <- "models/saved_models/predictive_model.rds"
+  model_path <- "data/processed/predictive_model.rds"
 }
 
 if (!file.exists(cleaned_data_path)) {
@@ -115,7 +115,7 @@ ui <- fluidPage(
       div(class = "text-center text-muted small",
           "CRISP-DM Analytics Pipeline", br(),
           tags$span(class = "badge bg-light text-dark border", "R-v4.6.0"),
-          tags$span(class = "badge bg-light text-dark border", "RandomForest")
+          tags$span(class = "badge bg-light text-dark border", "ElasticNet")
       )
     ),
     
@@ -318,12 +318,17 @@ server <- function(input, output, session) {
   
   # Reactive subset of data matching sidebar filters
   filtered_market_data <- reactive({
-    df <- market_data %>%
-      filter(product_category == input$filter_category) %>%
-      filter(date >= input$filter_dates[1] & date <= input$filter_dates[2])
+    req(input$filter_category, input$filter_dates, input$filter_region)
+    cat_val <- input$filter_category
+    date_val <- input$filter_dates
+    reg_val <- input$filter_region
     
-    if (input$filter_region != "All Regions") {
-      df <- df %>% filter(region == input$filter_region)
+    df <- market_data %>%
+      filter(product_category == cat_val) %>%
+      filter(date >= date_val[1] & date <= date_val[2])
+    
+    if (reg_val != "All Regions") {
+      df <- df %>% filter(region == reg_val)
     }
     
     df
@@ -438,8 +443,10 @@ server <- function(input, output, session) {
   })
   
   # Dynamically set slider ranges when category changes to fit real pricing distributions
-  observe({
-    cat_df <- market_data %>% filter(product_category == input$filter_category)
+  observeEvent(input$filter_category, {
+    req(input$filter_category)
+    cat_val <- input$filter_category
+    cat_df <- market_data %>% filter(product_category == cat_val)
     
     price_mean <- round(mean(cat_df$unit_price))
     price_min <- round(min(cat_df$unit_price) * 0.7)
@@ -467,6 +474,7 @@ server <- function(input, output, session) {
   
   # Reactive single prediction
   predict_single <- reactive({
+    req(input$filter_category, input$sim_price, input$sim_comp_price, input$sim_marketing, input$sim_month, input$sim_regulatory, input$sim_lag_1, input$sim_lag_2, input$filter_region)
     if (!model_available) {
       # Fallback dummy model if RDS doesn't exist
       base_val <- switch(input$filter_category,
@@ -493,7 +501,7 @@ server <- function(input, output, session) {
       price_ratio = input$sim_price / input$sim_comp_price,
       marketing_spend = input$sim_marketing,
       marketing_log = log(input$sim_marketing + 1),
-      month_factor = factor(input$sim_month),
+      month_factor = as.integer(input$sim_month),
       fourier_sin = sin(2 * pi * isoweek(sim_date) / 52.14),
       fourier_cos = cos(2 * pi * isoweek(sim_date) / 52.14),
       roll_mean_vol_4 = input$sim_lag_1,
@@ -519,37 +527,47 @@ server <- function(input, output, session) {
   
   # Tab 2 Plot: Pricing & Revenue Curve
   output$plot_revenue_optimization <- renderPlotly({
+    req(input$sim_comp_price, input$sim_price, input$filter_region, input$filter_category, input$sim_marketing, input$sim_month, input$sim_regulatory, input$sim_lag_1, input$sim_lag_2)
     comp_price <- input$sim_comp_price
+    planned_price <- input$sim_price
     sim_region <- if(input$filter_region == "All Regions") "North" else input$filter_region
-    sim_date <- as.Date(paste0("2026-", input$sim_month, "-15"))
+    
+    cat_val <- input$filter_category
+    mkt_val <- input$sim_marketing
+    month_val <- input$sim_month
+    reg_val <- input$sim_regulatory
+    lag1_val <- input$sim_lag_1
+    lag2_val <- input$sim_lag_2
+    
+    sim_date <- as.Date(paste0("2026-", month_val, "-15"))
     
     # Objective Function for optimize()
     rev_func <- function(price) {
       if (model_available) {
         sim_df <- data.frame(
-          product_category = input$filter_category,
+          product_category = cat_val,
           region = sim_region,
           unit_price = price,
           competitor_price = comp_price,
           price_ratio = price / comp_price,
-          marketing_spend = input$sim_marketing,
-          marketing_log = log(input$sim_marketing + 1),
-          month_factor = factor(input$sim_month),
+          marketing_spend = mkt_val,
+          marketing_log = log(mkt_val + 1),
+          month_factor = as.integer(month_val),
           fourier_sin = sin(2 * pi * isoweek(sim_date) / 52.14),
           fourier_cos = cos(2 * pi * isoweek(sim_date) / 52.14),
-          roll_mean_vol_4 = input$sim_lag_1,
-          roll_mean_vol_12 = input$sim_lag_1,
+          roll_mean_vol_4 = lag1_val,
+          roll_mean_vol_12 = lag1_val,
           roll_mean_price_ratio_4 = price / comp_price,
-          shock_decay = if(input$sim_regulatory) 1 else 0,
-          lag_volume_1 = input$sim_lag_1,
-          lag_volume_2 = input$sim_lag_2
+          shock_decay = if(reg_val) 1 else 0,
+          lag_volume_1 = lag1_val,
+          lag_volume_2 = lag2_val
         )
         vol <- predict(rf_model, new_data = sim_df)$.pred
       } else {
-        base_val <- switch(input$filter_category, "Cardiology Devices" = 120, "Oncology Drugs" = 45, "Neurology Biologics" = 80, "Orthopedic Implants" = 210)
+        base_val <- switch(cat_val, "Cardiology Devices" = 120, "Oncology Drugs" = 45, "Neurology Biologics" = 80, "Orthopedic Implants" = 210)
         price_eff <- exp(-1.8 * ((price / comp_price) - 1))
-        mkt_eff <- 1 + 0.12 * log(input$sim_marketing / 1000 + 1)
-        vol <- base_val * price_eff * mkt_eff * (if(input$sim_regulatory) 1.25 else 1.0)
+        mkt_eff <- 1 + 0.12 * log(mkt_val / 1000 + 1)
+        vol <- base_val * price_eff * mkt_eff * (if(reg_val) 1.25 else 1.0)
       }
       return(vol * price)
     }
@@ -565,7 +583,6 @@ server <- function(input, output, session) {
     
     plot_df <- data.frame(
       price = price_seq,
-      volume = predicted_vols,
       revenue = projected_revenue
     )
     
@@ -579,7 +596,7 @@ server <- function(input, output, session) {
       geom_line(color = "#1a80b0", size = 1.2) +
       geom_point(data = plot_df[opt_idx, ], aes(x = price, y = revenue), color = "#2bb386", size = 4) +
       geom_vline(xintercept = opt_price, color = "#2bb386", linetype = "dashed", size = 0.8) +
-      geom_vline(xintercept = input$sim_price, color = "#e06d60", linetype = "solid", size = 0.6) +
+      geom_vline(xintercept = planned_price, color = "#e06d60", linetype = "solid", size = 0.6) +
       labs(
         x = "Simulated Planned Price ($)",
         y = "Projected Weekly Revenue ($)"
@@ -587,7 +604,7 @@ server <- function(input, output, session) {
       annotate("text", x = opt_price, y = max_rev * 1.02, 
                label = paste("Optimal: $", format(opt_price, big.mark=",")), 
                color = "#2bb386", fontface = "bold", vjust = 0, hjust = -0.1) +
-      annotate("text", x = input$sim_price, y = max_rev * 0.5, 
+      annotate("text", x = planned_price, y = max_rev * 0.5, 
                label = "Planned", 
                color = "#e06d60", fontface = "bold", angle = 90, vjust = -0.5) +
       theme_minimal() +
@@ -640,7 +657,7 @@ server <- function(input, output, session) {
       geom_bar(stat = "identity", width = 0.7) +
       coord_flip() +
       scale_fill_gradient(low = "#b6e0e6", high = "#1b7d8c") +
-      labs(x = NULL, y = "Node Purity Increase (Relative Importance)") +
+      labs(x = NULL, y = "Relative Importance (Absolute Coefficient)") +
       theme_minimal() +
       theme(
         legend.position = "none",
