@@ -50,6 +50,7 @@ jobs:
           git add -f dashboard/app_data/
           git add -f outputs/
           git diff-index --quiet HEAD || git commit -m "Auto-update market intelligence data, plots, and predictive model [skip ci]"
+          git pull --rebase
           git push
 
       - name: Deploy to shinyapps.io
