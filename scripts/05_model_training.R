@@ -102,4 +102,13 @@ bundled_artifact <- list(
 
 saveRDS(bundled_artifact, artifact_path)
 cat(sprintf("\nModel artifact successfully bundled and saved to %s\n", artifact_path))
+
+# Copy the model into the dashboard folder for self-contained shinyapps.io deployment
+if (!dir.exists("dashboard/app_data")) {
+  dir.create("dashboard/app_data", recursive = TRUE)
+}
+file.copy(artifact_path, "dashboard/app_data/predictive_model.rds", overwrite = TRUE)
+cat("Model artifact mirrored to dashboard/app_data/ for UI deployment.\n")
+
 cat(sprintf("Memory Size of Artifact: %.2f MB\n", as.numeric(object.size(bundled_artifact)) / (1024^2)))
+

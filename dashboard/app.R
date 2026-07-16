@@ -16,17 +16,18 @@ if (dir.exists(local_lib)) {
 }
 
 # 1. Load Datasets & Model
-cleaned_data_path <- "../data/processed/cleaned_market_data.csv"
-model_path <- "../data/processed/predictive_model.rds"
+# Check local app_data folder first (for shinyapps.io and local deployments)
+cleaned_data_path <- "app_data/cleaned_market_data.csv"
+model_path <- "app_data/predictive_model.rds"
 
-# In case paths are called from the workspace root or dashboard folder
+# In case the app is being run from the workspace root (e.g. shiny::runApp('dashboard'))
 if (!file.exists(cleaned_data_path)) {
-  cleaned_data_path <- "data/processed/cleaned_market_data.csv"
-  model_path <- "data/processed/predictive_model.rds"
+  cleaned_data_path <- "dashboard/app_data/cleaned_market_data.csv"
+  model_path <- "dashboard/app_data/predictive_model.rds"
 }
 
 if (!file.exists(cleaned_data_path)) {
-  stop("Cleaned dataset not found! Please ensure data cleaning script has been run.")
+  stop("Cleaned dataset not found in app_data/! Please ensure data cleaning script has been run.")
 }
 
 market_data <- read.csv(cleaned_data_path, stringsAsFactors = FALSE)

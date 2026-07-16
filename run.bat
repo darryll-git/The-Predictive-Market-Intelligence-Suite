@@ -1,7 +1,12 @@
 rem run.bat
 
 @echo off
-
+rem ========================================================
+rem LOCAL EXECUTION SCRIPT
+rem This script runs the entire data pipeline locally and 
+rem launches the dashboard on your local machine.
+rem For cloud deployment, use deploy.bat instead.
+rem ========================================================
 rem Auto-detect R installation and add to PATH
 for /d %%i in ("C:\Program Files\R\R-*") do set "R_HOME=%%i"
 set "PATH=%R_HOME%\bin\x64;%R_HOME%\bin;%PATH%"

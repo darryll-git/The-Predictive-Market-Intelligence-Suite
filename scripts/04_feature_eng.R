@@ -66,3 +66,12 @@ cat(sprintf("Engineered features created. Dropped %d rows containing initial NA 
 # Save the model-ready dataset
 write.csv(model_ready_data, "data/processed/model_ready_data.csv", row.names = FALSE)
 cat("Feature-engineered dataset saved to data/processed/model_ready_data.csv successfully!\n")
+
+# Copy the dataset into the dashboard folder for self-contained shinyapps.io deployment
+if (!dir.exists("dashboard/app_data")) {
+  dir.create("dashboard/app_data", recursive = TRUE)
+}
+# We need the original cleaned market data for the UI
+file.copy("data/processed/cleaned_market_data.csv", "dashboard/app_data/cleaned_market_data.csv", overwrite = TRUE)
+cat("Dataset mirrored to dashboard/app_data/ for UI deployment.\n")
+

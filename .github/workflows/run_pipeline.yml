@@ -31,7 +31,7 @@ jobs:
 
       - name: Install R Packages
         run: |
-          Rscript -e 'install.packages(c("dplyr", "tidyr", "lubridate", "ggplot2", "plotly", "DT", "shinyWidgets", "bslib", "quantmod", "zoo", "tseries", "tidymodels", "glmnet", "vip"))'
+          Rscript -e 'install.packages(c("dplyr", "tidyr", "lubridate", "ggplot2", "plotly", "DT", "shinyWidgets", "bslib", "quantmod", "zoo", "tseries", "tidymodels", "glmnet", "vip", "rsconnect"))'
           
       - name: Run Pipeline Scripts
         run: |
@@ -47,6 +47,15 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add -f data/raw/
           git add -f data/processed/
+          git add -f dashboard/app_data/
           git add -f outputs/
           git diff-index --quiet HEAD || git commit -m "Auto-update market intelligence data, plots, and predictive model [skip ci]"
           git push
+
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_NAME: ${{ secrets.SHINYAPPS_NAME }}
+          SHINYAPPS_TOKEN: ${{ secrets.SHINYAPPS_TOKEN }}
+          SHINYAPPS_SECRET: ${{ secrets.SHINYAPPS_SECRET }}
+        run: |
+          Rscript deploy_cloud.R
