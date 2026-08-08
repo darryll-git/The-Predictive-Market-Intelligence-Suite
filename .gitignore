@@ -43,3 +43,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+
+# Dashboard Data
+/dashboard/app_data/*
+!/dashboard/app_data/.gitkeep
